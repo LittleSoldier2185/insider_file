@@ -1,0 +1,185 @@
+# ไฟล์ฝึกยิง API ระบบประเมินบุคลากร ด้วย VS Code Extension "REST Client" (humao.rest-client)
+# วิธีใช้: เปิดไฟล์นี้ใน VS Code แล้วกด "Send Request" ที่อยู่เหนือแต่ละ request
+# ยิงข้อ 1 (login) ก่อนเสมอ token จะถูกเก็บใน {{token}} ให้ request ถัดไปใช้อัตโนมัติ
+
+@base = http://localhost:3000/api
+@token = {{login.response.body.data.token}}
+
+### 1 Login admin (ต้องได้ 200 + token)
+# @name login
+POST {{base}}/auth/login
+Content-Type: application/json
+
+{ "username": "admin", "password": "admin1234" }
+
+### 2 Login รหัสผิด (ต้องได้ 401)
+POST {{base}}/auth/login
+Content-Type: application/json
+
+{ "username": "admin", "password": "wrong" }
+
+### 3 ข้อมูลตัวเอง (ต้องได้ 200)
+GET {{base}}/auth/me
+Authorization: Bearer {{token}}
+
+### 4 ไม่ใส่ token (ต้องได้ 401)
+GET {{base}}/users
+
+### 5 รายชื่อผู้รับการประเมิน
+GET {{base}}/users?role=evaluatee
+Authorization: Bearer {{token}}
+
+### 6 เพิ่มผู้ใช้ อีเมลผิด (ต้องได้ 400)
+POST {{base}}/users
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{ "username": "t1", "password": "12345678", "full_name": "ทดสอบ", "role": "evaluatee", "email": "abc" }
+
+### 7 เพิ่มผู้ใช้ (ต้องได้ 200 ได้ id / ถ้าได้ 400 ข้อมูลซ้ำ ให้เปลี่ยน username)
+# @name newUser
+POST {{base}}/users
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{ "username": "httptest1", "password": "12345678", "full_name": "ทดสอบ", "role": "evaluatee", "email": "a@b.com" }
+
+### 8 แก้ไขผู้ใช้ที่เพิ่งเพิ่ม (ต้องได้ 200)
+PUT {{base}}/users/{{newUser.response.body.data.id}}
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{ "full_name": "ชื่อใหม่", "role": "evaluatee" }
+
+### 9 ลบผู้ใช้ที่เพิ่งเพิ่ม (ต้องได้ 200)
+DELETE {{base}}/users/{{newUser.response.body.data.id}}
+Authorization: Bearer {{token}}
+
+### 10 รอบทั้งหมด
+GET {{base}}/periods
+Authorization: Bearer {{token}}
+
+### 11 รอบ 1 พร้อมหัวข้อและตัวชี้วัด
+GET {{base}}/periods/1
+Authorization: Bearer {{token}}
+
+### 12 สร้างรอบ วันสิ้นสุดก่อนวันเริ่ม (ต้องได้ 400)
+POST {{base}}/periods
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{ "name": "รอบทดสอบ", "start_date": "2026-12-31", "end_date": "2026-01-01" }
+
+### 13 Dashboard
+GET {{base}}/reports/dashboard
+Authorization: Bearer {{token}}
+
+### 14 สรุปรอบ 1 (ร้อยละการบันทึก + สถานะกรรมการ)
+GET {{base}}/reports/periods/1
+Authorization: Bearer {{token}}
+
+### 15 ไม่มี API นี้ (ต้องได้ 404)
+GET {{base}}/nothing
+Authorization: Bearer {{token}}
+
+# ---------------- ผู้รับการประเมิน (emp1) ----------------
+# emp1 ต้องเปลี่ยนรหัสครั้งแรกก่อน: ยิงข้อ 16 และ 17 ครั้งเดียว (ถ้าเคยเปลี่ยนเป็น newpass123 แล้ว ข้ามไปข้อ 18 ได้เลย)
+
+### 16 Login emp1 รหัสเริ่มต้น
+# @name empFirst
+POST {{base}}/auth/login
+Content-Type: application/json
+
+{ "username": "emp1", "password": "emp12345" }
+
+### 17 emp1 เปลี่ยนรหัสครั้งแรก
+PUT {{base}}/auth/password
+Authorization: Bearer {{empFirst.response.body.data.token}}
+Content-Type: application/json
+
+{ "old_password": "emp12345", "new_password": "newpass123" }
+
+### 18 Login emp1 ด้วยรหัสใหม่ (ข้อ 19-21 ใช้ token นี้)
+# @name empLogin
+POST {{base}}/auth/login
+Content-Type: application/json
+
+{ "username": "emp1", "password": "newpass123" }
+
+### 19 emp1 เรียก API ของ admin (ต้องได้ 403 ไม่มีสิทธิ์)
+GET {{base}}/users
+Authorization: Bearer {{empLogin.response.body.data.token}}
+
+### 20 emp1 กรอกคะแนนตนเอง (ถ้ากรรมการเริ่มประเมินแล้ว จะได้ 403 ถูกต้อง)
+PUT {{base}}/self/scores
+Authorization: Bearer {{empLogin.response.body.data.token}}
+Content-Type: application/json
+
+{ "indicator_id": 1, "score": 3 }
+
+### 21 emp1 เพิ่มรายละเอียด + แนบไฟล์ (เปลี่ยน ./sample.pdf เป็นไฟล์ PDF ที่มีอยู่จริง วางไว้โฟลเดอร์เดียวกับไฟล์นี้)
+POST {{base}}/self/details
+Authorization: Bearer {{empLogin.response.body.data.token}}
+Content-Type: multipart/form-data; boundary=----form
+
+------form
+Content-Disposition: form-data; name="indicator_id"
+
+1
+------form
+Content-Disposition: form-data; name="detail"
+
+แผนการสอนวิชา A
+------form
+Content-Disposition: form-data; name="file"; filename="sample.pdf"
+Content-Type: application/pdf
+
+< ./sample.pdf
+------form--
+
+# ---------------- กรรมการ (eva1) ----------------
+# eva1 ต้องเปลี่ยนรหัสครั้งแรกก่อน: ยิงข้อ 22 และ 23 ครั้งเดียว (ถ้าเคยเปลี่ยนแล้ว ข้ามไปข้อ 24)
+
+### 22 Login eva1 รหัสเริ่มต้น
+# @name evaFirst
+POST {{base}}/auth/login
+Content-Type: application/json
+
+{ "username": "eva1", "password": "eva12345" }
+
+### 23 eva1 เปลี่ยนรหัสครั้งแรก
+PUT {{base}}/auth/password
+Authorization: Bearer {{evaFirst.response.body.data.token}}
+Content-Type: application/json
+
+{ "old_password": "eva12345", "new_password": "newpass123" }
+
+### 24 Login eva1 ด้วยรหัสใหม่ (ข้อ 25-29 ใช้ token นี้)
+# @name evaLogin
+POST {{base}}/auth/login
+Content-Type: application/json
+
+{ "username": "eva1", "password": "newpass123" }
+
+### 25 รายชื่อที่ต้องประเมิน (ดู id ของงาน ข้อมูล seed สมชาย = 1)
+GET {{base}}/evaluate
+Authorization: Bearer {{evaLogin.response.body.data.token}}
+
+### 26 ดูข้อมูลผู้รับ ตัวชี้วัด หลักฐาน คะแนนตนเอง
+GET {{base}}/evaluate/1
+Authorization: Bearer {{evaLogin.response.body.data.token}}
+
+### 27 บันทึกร่าง (ให้คะแนนข้อ 1 + ความเห็น)
+PUT {{base}}/evaluate/1
+Authorization: Bearer {{evaLogin.response.body.data.token}}
+Content-Type: application/json
+
+{ "scores": [{ "indicator_id": 1, "score": 4 }], "comment": "ดีมาก" }
+
+### 28 ยืนยันผลตอนยังไม่ครบ (ต้องได้ 400)
+PUT {{base}}/evaluate/1/confirm
+Authorization: Bearer {{evaLogin.response.body.data.token}}
+
+### 29 รายงานรายบุคคลของ emp1 (admin เห็นทุกสถานะ)
+GET {{base}}/reports/result/1/2
+Authorization: Bearer {{token}}

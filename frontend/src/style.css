@@ -1,0 +1,10 @@
+@media print {
+  .no-print,
+  .v-app-bar,
+  .v-navigation-drawer {
+    display: none !important;
+  }
+  .v-main {
+    padding: 0 !important;
+  }
+}

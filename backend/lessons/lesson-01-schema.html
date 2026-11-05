@@ -1,0 +1,452 @@
+<meta name="claude:viewport-fit-sides" content="cover">
+<title>บทที่ 1 ออกแบบฐานข้อมูล</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+  /* Layout: one reading column, cards for tables, a cascade simulator in the middle */
+  :root {
+    --bg: #f6f5f1;
+    --panel: #ffffff;
+    --fg: #1c1f24;
+    --muted: #5d636d;
+    --accent: #2c5f8d;
+    --accent-soft: #e3edf6;
+    --border: #d8d6cf;
+    --code-bg: #efeee9;
+    --ok: #21714a;
+    --warn: #8a5f00;
+    --bad: #a3322a;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #16181c;
+      --panel: #1f2227;
+      --fg: #e8e7e3;
+      --muted: #979ca6;
+      --accent: #86b6e4;
+      --accent-soft: #223141;
+      --border: #3a3e46;
+      --code-bg: #14161a;
+      --ok: #6fca95;
+      --warn: #e5b860;
+      --bad: #f08c82;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #16181c;
+    --panel: #1f2227;
+    --fg: #e8e7e3;
+    --muted: #979ca6;
+    --accent: #86b6e4;
+    --accent-soft: #223141;
+    --border: #3a3e46;
+    --code-bg: #14161a;
+    --ok: #6fca95;
+    --warn: #e5b860;
+    --bad: #f08c82;
+    color-scheme: dark;
+  }
+  body {
+    background: var(--bg);
+    color: var(--fg);
+    font-family: 'Sarabun', system-ui, sans-serif;
+    font-size: 17px;
+    line-height: 1.7;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+    padding-block: 32px;
+  }
+  main { max-width: 800px; margin: 0 auto; display: flex; flex-direction: column; gap: 36px; }
+  section { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+  h1 { font-size: 2rem; line-height: 1.25; margin: 0; text-wrap: balance; }
+  h2 { font-size: 1.3rem; margin: 0; padding-bottom: 6px; border-bottom: 1px solid var(--border); }
+  h3 { font-size: 1.05rem; margin: 6px 0 0; }
+  p { margin: 0; }
+  .lede { color: var(--muted); }
+  .eyebrow { font-size: 0.85rem; letter-spacing: 0.08em; color: var(--accent); font-weight: 600; }
+  .goals { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 4px; }
+
+  code, pre, .mono { font-family: 'JetBrains Mono', ui-monospace, Consolas, monospace; font-size: 0.88rem; }
+  code { background: var(--code-bg); padding: 1px 5px; border-radius: 4px; }
+  pre {
+    margin: 0;
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 12px 14px;
+    overflow-x: auto;
+    line-height: 1.55;
+  }
+
+  /* ER cards */
+  .tables { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
+  .table-card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 0;
+  }
+  .table-card h3 { font-family: 'JetBrains Mono', monospace; font-size: 0.95rem; color: var(--accent); margin: 0; }
+  .table-card ul { margin: 0; padding-left: 18px; font-size: 0.9rem; color: var(--muted); }
+  .table-card .fk { color: var(--fg); }
+  .tag { font-size: 0.75rem; font-weight: 600; color: var(--accent); background: var(--accent-soft); border-radius: 4px; padding: 0 5px; margin-left: 4px; }
+
+  /* principle blocks */
+  .principle { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 16px 18px; display: flex; flex-direction: column; gap: 10px; }
+  .principle .src { font-size: 0.85rem; color: var(--muted); }
+
+  /* cascade simulator */
+  .sim { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 16px 18px; display: flex; flex-direction: column; gap: 12px; }
+  .sim-buttons { display: flex; flex-wrap: wrap; gap: 8px; }
+  button {
+    font: inherit;
+    font-weight: 600;
+    font-size: 0.92rem;
+    padding: 7px 12px;
+    border-radius: 6px;
+    border: 1px solid var(--accent);
+    background: transparent;
+    color: var(--accent);
+    cursor: pointer;
+  }
+  button.on { background: var(--accent); color: var(--bg); }
+  button.primary { background: var(--accent); color: var(--bg); }
+  button:focus-visible, textarea:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .sim-out { min-height: 3em; color: var(--fg); }
+  .sim-out .deleted { color: var(--bad); font-weight: 600; }
+  .sim-out .kept { color: var(--ok); font-weight: 600; }
+
+  /* quiz */
+  .q { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 16px 18px; display: flex; flex-direction: column; gap: 10px; }
+  .q p.question { font-weight: 600; }
+  .choices { display: flex; flex-direction: column; gap: 6px; }
+  .choices label { display: flex; gap: 8px; align-items: center; cursor: pointer; }
+  .feedback { font-weight: 600; min-height: 1.4em; }
+  .feedback.ok { color: var(--ok); }
+  .feedback.bad { color: var(--bad); }
+  .explain { color: var(--muted); font-size: 0.95rem; }
+
+  textarea {
+    width: 100%;
+    min-height: 110px;
+    box-sizing: border-box;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.88rem;
+    background: var(--code-bg);
+    color: var(--fg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 10px 12px;
+    resize: vertical;
+  }
+  .note-box { background: var(--accent-soft); border-radius: 8px; padding: 12px 14px; font-size: 0.95rem; }
+  details summary { cursor: pointer; font-weight: 600; color: var(--accent); }
+  details pre { margin-top: 8px; }
+</style>
+
+<main>
+  <header style="display:flex; flex-direction:column; gap:10px">
+    <p class="eyebrow">บทที่ 1 จาก 8</p>
+    <h1>ออกแบบฐานข้อมูล: อ่าน schema.sql ให้เข้าใจ</h1>
+    <p class="lede">ฐานข้อมูลนี้มี 8 ตาราง ไฟล์ <code>schema.sql</code> อธิบายโครงสร้างทั้งหมดในไฟล์เดียว บทนี้จะดูว่าแต่ละตารางทำหน้าที่อะไร และทำไมต้องเขียนกฎแบบนี้</p>
+    <div>
+      <button type="button" id="clearAll">ล้างคำตอบทั้งหมด</button>
+    </div>
+  </header>
+
+  <section>
+    <h2>เป้าหมายบทนี้</h2>
+    <ul class="goals">
+      <li>อธิบายความสัมพันธ์ระหว่าง 8 ตารางได้</li>
+      <li>อ่านคำสั่ง <code>FOREIGN KEY</code>, <code>UNIQUE</code>, <code>ENUM</code> และ <code>ON DELETE CASCADE</code> ได้</li>
+      <li>ทำนายได้ว่าการลบข้อมูลหนึ่งแถวจะกระทบตารางใดบ้าง</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>ภาพรวม 8 ตาราง</h2>
+    <p>ตารางลูกจะอ้างถึงตารางแม่ผ่าน FOREIGN KEY ดูจากกล่องด้านล่าง ตารางที่มี <span class="tag">FK</span> คือตารางที่อ้างถึงตารางอื่น</p>
+    <div class="tables">
+      <div class="table-card">
+        <h3>users</h3>
+        <ul>
+          <li>ผู้ใช้ทุกคน แยกด้วย <code>role</code></li>
+          <li>ไม่มี FK</li>
+        </ul>
+      </div>
+      <div class="table-card">
+        <h3>periods</h3>
+        <ul>
+          <li>รอบการประเมิน มีวันเปิด-ปิด</li>
+          <li>ไม่มี FK</li>
+        </ul>
+      </div>
+      <div class="table-card">
+        <h3>topics <span class="tag">FK</span></h3>
+        <ul>
+          <li>หัวข้อ อยู่ในรอบ</li>
+          <li class="fk">อ้างถึง periods</li>
+        </ul>
+      </div>
+      <div class="table-card">
+        <h3>indicators <span class="tag">FK</span></h3>
+        <ul>
+          <li>ตัวชี้วัด อยู่ในหัวข้อ</li>
+          <li class="fk">อ้างถึง topics</li>
+        </ul>
+      </div>
+      <div class="table-card">
+        <h3>assignments <span class="tag">FK</span></h3>
+        <ul>
+          <li>กรรมการ 1 คน ประเมินผู้รับ 1 คน ในรอบ 1 รอบ</li>
+          <li class="fk">อ้างถึง periods, users (2 ครั้ง)</li>
+        </ul>
+      </div>
+      <div class="table-card">
+        <h3>self_scores <span class="tag">FK</span></h3>
+        <ul>
+          <li>คะแนนที่ผู้รับประเมินตนเอง</li>
+          <li class="fk">อ้างถึง users, indicators</li>
+        </ul>
+      </div>
+      <div class="table-card">
+        <h3>self_details <span class="tag">FK</span></h3>
+        <ul>
+          <li>รายละเอียดและหลักฐาน</li>
+          <li class="fk">อ้างถึง users, indicators</li>
+        </ul>
+      </div>
+      <div class="table-card">
+        <h3>scores <span class="tag">FK</span></h3>
+        <ul>
+          <li>คะแนนที่กรรมการให้</li>
+          <li class="fk">อ้างถึง assignments, indicators</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>อ่านโค้ดจริงทีละส่วน</h2>
+
+    <div class="principle">
+      <h3>1) ตารางแม่ต้องถูกสร้างก่อนตารางลูก</h3>
+      <p>ไฟล์เขียนไว้บรรทัดแรกว่า "อ่านจากบนลงล่าง" เพราะ FOREIGN KEY ต้องอ้างถึงตารางที่มีอยู่แล้ว</p>
+      <pre>-- schema.sql:2
+-- อ่านจากบนลงล่าง: ตารางลูกอ้างถึงตารางแม่ด้วย FOREIGN KEY</pre>
+      <p class="src">ไฟล์ seed.js บรรทัด 9–11 รันคำสั่งทีละคำสั่งตามลำดับนี้</p>
+    </div>
+
+    <div class="principle">
+      <h3>2) ENUM จำกัดค่าที่เป็นไปได้</h3>
+      <pre>role        ENUM('admin','evaluatee','evaluator')      -- schema.sql:12
+score_type  ENUM('yesno','scale')                       -- schema.sql:40
+status      ENUM('pending','draft','confirmed')         -- schema.sql:53</pre>
+      <p class="src">ค่าที่นอกเหนือจากนี้จะถูกฐานข้อมูลปฏิเสธ ค่า <code>role</code> ที่ใช้ในโค้ดตรงกับ ENUM ทุกตัว</p>
+    </div>
+
+    <div class="principle">
+      <h3>3) UNIQUE กันข้อมูลซ้ำ</h3>
+      <pre>UNIQUE (period_id, evaluatee_id, evaluator_id)  -- schema.sql:56  มอบหมายซ้ำไม่ได้
+UNIQUE (assignment_id, indicator_id)             -- schema.sql:91  ให้คะแนนตัวชี้วัดเดิมซ้ำไม่ได้</pre>
+      <p class="src">เมื่อซ้ำ MySQL ส่ง <code>ER_DUP_ENTRY</code> แล้ว server.js บรรทัด 37 แปลงเป็น HTTP 400 พร้อมข้อความ "ข้อมูลซ้ำกับที่มีอยู่แล้ว"</p>
+    </div>
+
+    <div class="principle">
+      <h3>4) ON DELETE CASCADE ลบตามลำดับชั้น</h3>
+      <p>ลบแถวในตารางแม่ ฐานข้อมูลจะลบแถวลูกที่อ้างถึงมันให้อัตโนมัติ ลองดูผลจากตัวจำลองด้านล่าง</p>
+    </div>
+  </section>
+
+  <section>
+    <h2>ลองลบแล้วดูว่าอะไรหายตาม</h2>
+    <p class="lede">กดตารางที่ต้องการลบ ระบบจะคำนวณว่าตารางใดจะถูกลบตาม cascade บ้าง</p>
+    <div class="sim">
+      <div class="sim-buttons" id="simButtons"></div>
+      <div class="sim-out" id="simOut" aria-live="polite"></div>
+    </div>
+    <div class="note-box">
+      <strong>หมายเหตุ:</strong> ตัวจำลองนี้ดูเฉพาะความสัมพันธ์ FOREIGN KEY ตามที่เขียนใน schema.sql ไม่ได้รันฐานข้อมูลจริง
+      และไม่ได้ดูว่าโค้ด route ทำอะไรเพิ่มเติม
+    </div>
+  </section>
+
+  <section>
+    <h2>แบบทดสอบสั้น</h2>
+
+    <div class="q" data-answer="users">
+      <p class="question">ข้อ 1: ตารางใดต่อไปนี้ <strong>ไม่มี</strong> FOREIGN KEY</p>
+      <div class="choices">
+        <label><input type="radio" name="q1" value="topics"> topics</label>
+        <label><input type="radio" name="q1" value="users"> users</label>
+        <label><input type="radio" name="q1" value="scores"> scores</label>
+        <label><input type="radio" name="q1" value="indicators"> indicators</label>
+      </div>
+      <button type="button" data-check="q1">ตรวจคำตอบ</button>
+      <p class="feedback" id="fb-q1"></p>
+      <p class="explain">users ไม่อ้างถึงตารางอื่น จึงไม่มี FOREIGN KEY ส่วน periods ก็ไม่มีเช่นกัน</p>
+    </div>
+
+    <div class="q" data-answer="superuser">
+      <p class="question">ข้อ 2: ค่าใดต่อไปนี้ <strong>ไม่ผ่าน</strong> ENUM ของ role</p>
+      <div class="choices">
+        <label><input type="radio" name="q2" value="admin"> admin</label>
+        <label><input type="radio" name="q2" value="evaluator"> evaluator</label>
+        <label><input type="radio" name="q2" value="superuser"> superuser</label>
+        <label><input type="radio" name="q2" value="evaluatee"> evaluatee</label>
+      </div>
+      <button type="button" data-check="q2">ตรวจคำตอบ</button>
+      <p class="feedback" id="fb-q2"></p>
+      <p class="explain">ENUM ยอมรับเฉพาะ 'admin', 'evaluatee', 'evaluator' เท่านั้น</p>
+    </div>
+
+    <div class="q" data-answer="yes">
+      <p class="question">ข้อ 3: ถ้าลบ users หนึ่งแถว แถวใน scores ที่เกี่ยวข้องจะถูกลบด้วยหรือไม่</p>
+      <div class="choices">
+        <label><input type="radio" name="q3" value="yes"> ใช่ ถูกลบด้วย</label>
+        <label><input type="radio" name="q3" value="no"> ไม่ ยังอยู่</label>
+      </div>
+      <button type="button" data-check="q3">ตรวจคำตอบ</button>
+      <p class="feedback" id="fb-q3"></p>
+      <p class="explain">ลบ user จะลบ assignments ที่เขาเป็นผู้รับหรือกรรมการ และ assignments ลบ scores ต่อ จึงถูกลบเป็นทอด ๆ</p>
+    </div>
+  </section>
+
+  <section>
+    <h2>แบบฝึกหัด: เพิ่มตารางใหม่</h2>
+    <p>เขียน <code>CREATE TABLE</code> ของตาราง <code>committee_notes</code> ที่เก็บหมายเหตุของกรรมการ โดยมี
+      <code>assignment_id</code> เป็น FOREIGN KEY, คอลัมน์ <code>note TEXT NOT NULL</code> และ
+      <code>created_at</code> ที่ค่าเริ่มต้นเป็นเวลาปัจจุบัน</p>
+    <textarea id="exerciseInput" spellcheck="false" aria-label="คำตอบ SQL" placeholder="เขียนคำสั่ง CREATE TABLE ตรงนี้"></textarea>
+    <details>
+      <summary>เฉลย</summary>
+      <pre>CREATE TABLE IF NOT EXISTS committee_notes (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  assignment_id INT NOT NULL,
+  note TEXT NOT NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (assignment_id) REFERENCES assignments(id) ON DELETE CASCADE
+);</pre>
+    </details>
+    <p class="explain">เมื่อพิมพ์เสร็จให้เทียบกับเฉลย จุดที่ควรตรวจคือ FOREIGN KEY, ON DELETE CASCADE และค่า DEFAULT ของ created_at</p>
+  </section>
+
+  <section>
+    <h2>สิ่งที่ schema ไม่ได้ป้องกัน</h2>
+    <div class="principle">
+      <p><code>score INT</code> ใน schema ไม่มีการจำกัดช่วงค่า ฐานข้อมูลจะรับคะแนนเป็น 99 หรือ -3 ได้ การตรวจช่วงคะแนน (0–1 สำหรับ yesno และ 1–4 สำหรับ scale) อยู่ในฟังก์ชัน <code>validScore</code> ใน helpers.js บรรทัด 21–24 และถูกเรียกใช้ใน routes/self.js และ routes/evaluate.js</p>
+      <p>ผลที่ตามมาคือ ถ้ามีโค้ดอื่นเขียนลงตาราง scores โดยไม่ผ่านฟังก์ชันนี้ ข้อมูลผิดจะเข้าไปได้ และจะไม่มีใครเตือน บทนี้ใช้เป็นคำถามทบทวนได้: กฎสำคัญควรอยู่ที่ schema หรือที่โค้ด และแต่ละแบบมีข้อดีข้อเสียอย่างไร</p>
+    </div>
+  </section>
+</main>
+
+<script>
+  // ความสัมพันธ์ FOREIGN KEY จาก schema.sql: ตารางแม่ → ตารางลูกที่ถูกลบตาม
+  const CHILDREN = {
+    users: ['assignments', 'self_scores', 'self_details'],
+    periods: ['topics', 'assignments'],
+    topics: ['indicators'],
+    indicators: ['self_scores', 'self_details', 'scores'],
+    assignments: ['scores'],
+    self_scores: [],
+    self_details: [],
+    scores: [],
+  };
+
+  // หาทุกตารางที่จะถูกลบตาม cascade (ไล่ลงลูกแบบเป็นทอด ๆ)
+  function cascadeOf(table) {
+    const deleted = new Set();
+    const queue = [...CHILDREN[table]];
+    while (queue.length) {
+      const next = queue.shift();
+      if (deleted.has(next)) continue;
+      deleted.add(next);
+      queue.push(...CHILDREN[next]);
+    }
+    return deleted;
+  }
+
+  const buttonsBox = document.getElementById('simButtons');
+  const out = document.getElementById('simOut');
+  const allTables = Object.keys(CHILDREN);
+  let selected = null;
+
+  function render() {
+    buttonsBox.replaceChildren();
+    for (const t of allTables) {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.textContent = t;
+      b.className = t === selected ? 'on' : '';
+      b.setAttribute('aria-pressed', String(t === selected));
+      b.addEventListener('click', () => { selected = t; render(); show(); });
+      buttonsBox.appendChild(b);
+    }
+  }
+
+  function show() {
+    out.replaceChildren();
+    if (!selected) {
+      out.textContent = 'เลือกตารางด้านบนเพื่อดูผล';
+      return;
+    }
+    const gone = cascadeOf(selected);
+    const line = document.createElement('p');
+    line.textContent = `ลบ ${selected} หนึ่งแถว: `;
+    if (gone.size === 0) {
+      const s = document.createElement('span');
+      s.className = 'kept';
+      s.textContent = 'ไม่มีตารางลูกที่ถูกลบตาม';
+      line.appendChild(s);
+    } else {
+      const s = document.createElement('span');
+      s.className = 'deleted';
+      s.textContent = 'ตารางลูกที่ถูกลบตาม: ' + [...gone].join(', ');
+      line.appendChild(s);
+    }
+    out.appendChild(line);
+    const kept = allTables.filter((t) => t !== selected && !gone.has(t));
+    const keptLine = document.createElement('p');
+    keptLine.className = 'lede';
+    keptLine.textContent = 'ตารางที่ไม่ได้รับผลกระทบ: ' + (kept.length ? kept.join(', ') : 'ไม่มี');
+    out.appendChild(keptLine);
+  }
+
+  render();
+  show();
+
+  // ตรวจคำตอบแบบทดสอบ
+  const answers = { q1: 'users', q2: 'superuser', q3: 'yes' };
+  for (const [name, correct] of Object.entries(answers)) {
+    document.querySelector(`[data-check="${name}"]`).addEventListener('click', () => {
+      const picked = document.querySelector(`input[name="${name}"]:checked`);
+      const fb = document.getElementById('fb-' + name);
+      fb.className = 'feedback';
+      if (!picked) {
+        fb.textContent = 'เลือกคำตอบก่อน';
+        return;
+      }
+      const ok = picked.value === correct;
+      fb.textContent = ok ? 'ถูกต้อง' : 'ยังไม่ถูก ลองดูคำอธิบายด้านล่าง';
+      fb.classList.add(ok ? 'ok' : 'bad');
+    });
+  }
+
+  // ล้างคำตอบ การเลือก และผลตรวจทั้งหมดในหน้า
+  document.getElementById('clearAll').addEventListener('click', () => {
+    document.getElementById('exerciseInput').value = '';
+    for (const input of document.querySelectorAll('input[type="radio"]')) input.checked = false;
+    for (const fb of document.querySelectorAll('.feedback')) {
+      fb.textContent = '';
+      fb.className = 'feedback';
+    }
+    for (const d of document.querySelectorAll('details')) d.open = false;
+    selected = null;
+    render();
+    show();
+  });
+</script>
